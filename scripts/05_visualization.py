@@ -31,6 +31,7 @@ def _ensure_stats_tables() -> None:
         TABLES_DIR / "stats_lipid_male.csv",
         TABLES_DIR / "stats_lipid_female.csv",
         TABLES_DIR / "stats_category_all.csv",
+        TABLES_DIR / "ancova_sex_lipid.csv",
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
@@ -85,6 +86,38 @@ def make_category_barplot(category_df: pd.DataFrame, output_path: Path) -> None:
     plt.xlabel("Lipid category")
     plt.ylabel("SI_avg coefficient")
     plt.title("Category-level SI association (all cohort)")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=220)
+    plt.close()
+
+
+def make_interaction_volcano_plot(
+    ancova_df: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    """Create interaction volcano plot for SI_avg:msex ANCOVA effects."""
+    if ancova_df.empty:
+        return
+
+    plot_df = ancova_df.copy()
+    plot_df["neg_log10_p_interaction"] = -plot_df["p_interaction"].clip(lower=1e-300).map(math.log10)
+    plot_df["significant"] = plot_df["fdr_p_interaction"] < 0.05
+
+    plt.figure(figsize=(8, 6))
+    sns.scatterplot(
+        data=plot_df,
+        x="coef_interaction",
+        y="neg_log10_p_interaction",
+        hue="significant",
+        palette={True: "#d62728", False: "#1f77b4"},
+        s=35,
+        alpha=0.8,
+        linewidth=0,
+    )
+    plt.axhline(-math.log10(0.05), linestyle="--", color="black", linewidth=1)
+    plt.xlabel("SI_avg:msex interaction coefficient")
+    plt.ylabel("-log10(interaction p-value)")
+    plt.title("Volcano plot: ANCOVA sex interaction")
     plt.tight_layout()
     plt.savefig(output_path, dpi=220)
     plt.close()
@@ -157,18 +190,21 @@ def run_visualization(
     stats_male = pd.read_csv(tables_dir / "stats_lipid_male.csv")
     stats_female = pd.read_csv(tables_dir / "stats_lipid_female.csv")
     category_all = pd.read_csv(tables_dir / "stats_category_all.csv")
+    ancova_lipid = pd.read_csv(tables_dir / "ancova_sex_lipid.csv")
 
     outputs = {
         "volcano_all": figures_dir / "volcano_all.png",
         "volcano_male": figures_dir / "volcano_male.png",
         "volcano_female": figures_dir / "volcano_female.png",
         "category_barplot_all": figures_dir / "category_effects_all.png",
+        "volcano_sex_interaction": figures_dir / "volcano_sex_interaction.png",
     }
 
     make_volcano_plot(stats_all, "Volcano plot: all cohort", outputs["volcano_all"])
     make_volcano_plot(stats_male, "Volcano plot: male cohort", outputs["volcano_male"])
     make_volcano_plot(stats_female, "Volcano plot: female cohort", outputs["volcano_female"])
     make_category_barplot(category_all, outputs["category_barplot_all"])
+    make_interaction_volcano_plot(ancova_lipid, outputs["volcano_sex_interaction"])
 
     dist_dir = figures_dir / "lipid_distribution_plots"
     count = make_top_lipid_distribution_plots(

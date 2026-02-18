@@ -179,6 +179,94 @@ def run_per_lipid_regression(
     return out
 
 
+def run_ancova_sex_interaction(
+    df: pd.DataFrame,
+    lipid_columns: Sequence[str] | None = None,
+    main_predictor: str = "SI_avg",
+    sex_column: str = "msex",
+    covariates: Sequence[str] = ("niareagansc", "age_death"),
+    min_n: int = 20,
+) -> pd.DataFrame:
+    """
+    Run ANCOVA-style interaction models across lipids.
+
+    Model form:
+        lipid ~ SI_avg * msex + niareagansc + age_death
+
+    The interaction term tests whether SI-lipid associations differ by sex.
+    """
+    if lipid_columns is None:
+        lipid_columns = get_lipid_columns(df)
+
+    required_shared = [main_predictor, sex_column] + list(covariates)
+    if any(col not in df.columns for col in required_shared):
+        return pd.DataFrame(
+            columns=[
+                "lipid",
+                "n_samples",
+                "r_squared",
+                "coef_SI_avg",
+                "p_SI_avg",
+                "coef_msex",
+                "p_msex",
+                "coef_interaction",
+                "p_interaction",
+                "fdr_p_interaction",
+                "fdr_p_interaction_reject",
+            ]
+        )
+
+    main_key = _q(main_predictor)
+    sex_key = _q(sex_column)
+    interaction_key = f"{main_key}:{sex_key}"
+
+    results: list[dict[str, float | str | int]] = []
+    for lipid in lipid_columns:
+        needed_cols = [lipid] + required_shared
+        if any(col not in df.columns for col in needed_cols):
+            continue
+
+        model_df = clean_numeric_frame(df, needed_cols)
+        if len(model_df) < min_n:
+            continue
+        if model_df[lipid].nunique(dropna=True) <= 1:
+            continue
+
+        covariate_terms = " + ".join(_q(c) for c in covariates)
+        formula = f"{_q(lipid)} ~ {main_key} * {sex_key} + {covariate_terms}"
+        try:
+            model = smf.ols(formula=formula, data=model_df).fit()
+        except Exception:
+            continue
+
+        if any(key not in model.params.index for key in (main_key, sex_key, interaction_key)):
+            continue
+
+        results.append(
+            {
+                "lipid": lipid,
+                "n_samples": int(model.nobs),
+                "r_squared": float(model.rsquared),
+                "coef_SI_avg": float(model.params[main_key]),
+                "p_SI_avg": float(model.pvalues[main_key]),
+                "coef_msex": float(model.params[sex_key]),
+                "p_msex": float(model.pvalues[sex_key]),
+                "coef_interaction": float(model.params[interaction_key]),
+                "p_interaction": float(model.pvalues[interaction_key]),
+            }
+        )
+
+    out = pd.DataFrame(results)
+    if not out.empty:
+        out = add_fdr_column(
+            out,
+            p_value_column="p_interaction",
+            output_column="fdr_p_interaction",
+        )
+        out = out.sort_values("p_interaction", ascending=True).reset_index(drop=True)
+    return out
+
+
 def split_by_sex(df: pd.DataFrame, sex_column: str = "msex") -> dict[str, pd.DataFrame]:
     """Return male/female/full cohorts keyed by descriptive labels."""
     cohorts = {"all": df.copy()}

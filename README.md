@@ -1,26 +1,28 @@
 # ROSMAP-SI-Lipidomics
 
-Rebuilt, fully documented analysis pipeline for ROSMAP social isolation and brain lipidomics associations.
+Self-contained analysis pipeline for studying social isolation and brain lipidomics associations in ROSMAP.
 
-## Project Goal
+## Scientific Background
 
-This repository tests whether social isolation (primarily `SI_avg`) is associated with lipid abundance in ROSMAP brain tissue, while adjusting for key covariates (for example `niareagansc` and `age_death`) and stratifying by sex.
+This project asks two primary questions:
 
-The original exploratory analysis lived in:
+1. Are social isolation scores (`SI_avg`) associated with lipid abundance across the lipidome?
+2. Do those SI-lipid associations differ between males and females?
 
-- `/om2/user/mabdel03/files/Isolation/Lipidomics_Work/`
+To answer these, the repository builds analysis-ready data from raw lipidomics + metadata, runs QC, fits per-lipid and category-level models, performs sensitivity analyses excluding AD pathology cases, and generates publication-oriented summary figures.
 
-This repository reorganizes that work into a reproducible, collaborator-friendly structure with clear script and notebook entrypoints.
+## Analysis Flow
 
-## What This Rebuild Preserves
+```mermaid
+flowchart TD
+    Step01["01_data_processing"] --> Step02["02_quality_control"]
+    Step02 --> Step03["03_statistical_analysis"]
+    Step03 --> Step04["04_sensitivity_no_ad"]
+    Step03 --> Step05["05_visualization"]
+    Step04 --> Step05
+```
 
-- Data-processing logic from `SI_Lipidomics_Processing.ipynb`
-- QC logic from `Lipidomics_Code_Review.ipynb`
-- Full-cohort/sex-stratified modeling ideas from `R_stats.ipynb`, `Isolation_Lipidomics_Stats.ipynb`, and `Rebecca_Replication_Analysis.ipynb`
-- No-AD sensitivity analyses from `Lipidomics_NoAD.ipynb` and `Lipidomics_NoAD_March2025Update.ipynb`
-- Figure-generation concepts from `Lipidomics_Final_Figures.ipynb`
-
-## Repository Structure
+## Repository Layout
 
 ```text
 ROSMAP-SI-Lipidomics/
@@ -28,46 +30,59 @@ ROSMAP-SI-Lipidomics/
 ├── requirements.txt
 ├── data/
 │   ├── README.md
-│   ├── raw/                      # local copies of source CSV files (gitignored)
-│   └── processed/                # pipeline outputs (gitignored)
+│   ├── raw/
+│   └── processed/
 ├── src/
-│   ├── data_utils.py             # data loading/prep helpers
-│   └── stats_utils.py            # QC + model helper functions
+│   ├── README.md
+│   ├── data_utils.py
+│   └── stats_utils.py
 ├── scripts/
+│   ├── README.md
 │   ├── 01_data_processing.py
 │   ├── 02_quality_control.py
 │   ├── 03_statistical_analysis.py
 │   ├── 04_sensitivity_no_ad.py
 │   └── 05_visualization.py
 ├── notebooks/
+│   ├── README.md
 │   ├── 01_data_processing.ipynb
 │   ├── 02_quality_control.ipynb
 │   ├── 03_statistical_analysis.ipynb
 │   ├── 04_sensitivity_no_ad.ipynb
 │   └── 05_visualization.ipynb
 └── results/
-    ├── figures/                  # generated plots (gitignored)
-    └── tables/                   # generated tables (gitignored)
+    ├── README.md
+    ├── figures/
+    └── tables/
 ```
 
-## Data Handling
+## Getting Started
 
-- Source CSV files are copied locally into `data/raw/` for reproducibility.
-- Original files in `/om2/user/mabdel03/files/Isolation/Lipidomics_Work/` are not edited.
-- CSVs are intentionally gitignored to keep the repository lightweight.
-- Full file inventory and provenance are documented in `data/README.md`.
+### 1) Clone and enter the repo
 
-## Setup
+```bash
+git clone https://github.com/Environmental-And-Social-Epigenetics/ROSMAP-SI-Lipidomics.git
+cd ROSMAP-SI-Lipidomics
+```
 
-From the repository root:
+### 2) Install dependencies
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-## End-to-End Run Order
+### 3) Obtain data
 
-Run scripts in order:
+Place required source CSVs into `data/raw/` in the folder structure documented in `data/README.md`.
+
+### 4) Choose run mode
+
+- **Script-first (recommended for reproducibility):** run Python scripts in sequence.
+- **Notebook-first (recommended for walkthroughs):** run notebooks in sequence.
+
+## Running the Analysis
+
+### Script-first pipeline
 
 ```bash
 python scripts/01_data_processing.py
@@ -77,89 +92,91 @@ python scripts/04_sensitivity_no_ad.py
 python scripts/05_visualization.py
 ```
 
-## Pipeline Steps
+### Notebook-first pipeline
 
-### Step 01 - Data Processing
+Run these notebooks in order:
+
+1. `notebooks/01_data_processing.ipynb`
+2. `notebooks/02_quality_control.ipynb`
+3. `notebooks/03_statistical_analysis.ipynb`
+4. `notebooks/04_sensitivity_no_ad.ipynb`
+5. `notebooks/05_visualization.ipynb`
+
+## Pipeline Steps (What each step does)
+
+### Step 01: Data Processing
 
 Script: `scripts/01_data_processing.py`  
 Notebook: `notebooks/01_data_processing.ipynb`
 
-- Loads raw lipidomics matrix and metadata
+- Loads raw lipidomics and metadata tables
 - Maps `projid -> individualID`
-- Reshapes lipidomics matrix to sample-by-lipid format
-- Applies internal standard normalization (`PC(18:1D7_15:0)` positive/negative references)
-- Attaches covariates (`SI_avg`, `niareagansc`, `msex`, `age_death`, `educ`, medication vars, `pmi`)
+- Converts lipidomics matrix into sample-by-lipid format
+- Applies internal-standard normalization
+- Attaches model covariates
 - Writes:
   - `data/processed/Normalized_Formatted_Lipidomics.csv`
   - `data/processed/Final_Formatted_Lipidomics.csv`
 
-### Step 02 - Quality Control
+### Step 02: Quality Control
 
 Script: `scripts/02_quality_control.py`  
 Notebook: `notebooks/02_quality_control.ipynb`
 
-- Local Outlier Factor (LOF) sample-level outlier scan
-- Shapiro-Wilk normality test per lipid
-- Benjamini-Hochberg FDR adjustment
-- Writes:
-  - `results/tables/qc_lof_scores.csv`
-  - `results/tables/qc_shapiro_normality.csv`
-  - `results/figures/qc_lof_score_distribution.png`
-  - `results/figures/qc_shapiro_pvalue_distribution.png`
+- Runs Local Outlier Factor (LOF) outlier diagnostics
+- Runs Shapiro-Wilk normality checks across lipids
+- Applies FDR correction
+- Writes tables and QC figures to `results/`
 
-### Step 03 - Statistical Analysis (Full Cohort)
+### Step 03: Statistical Analysis (includes ANCOVA)
 
 Script: `scripts/03_statistical_analysis.py`  
 Notebook: `notebooks/03_statistical_analysis.ipynb`
 
-- Per-lipid OLS model:
-  - `lipid ~ SI_avg + niareagansc + age_death`
-- Cohorts:
-  - all
-  - male (`msex == 1`)
-  - female (`msex == 0`)
-- Category-mean models (`catmean_*`)
+- Runs per-lipid OLS in all/male/female cohorts
+- Runs category-mean models
+- Runs pooled ANCOVA interaction model:
+  - `lipid ~ SI_avg * msex + niareagansc + age_death`
 - Writes:
-  - `results/tables/stats_lipid_all.csv`
-  - `results/tables/stats_lipid_male.csv`
-  - `results/tables/stats_lipid_female.csv`
-  - `results/tables/stats_category_all.csv`
-  - `results/tables/stats_category_male.csv`
-  - `results/tables/stats_category_female.csv`
+  - `results/tables/stats_lipid_*.csv`
+  - `results/tables/stats_category_*.csv`
+  - `results/tables/ancova_sex_lipid.csv`
+  - `results/tables/ancova_sex_category.csv`
 
-### Step 04 - Sensitivity Analysis (No AD)
+### Step 04: Sensitivity Analysis (No AD)
 
 Script: `scripts/04_sensitivity_no_ad.py`  
 Notebook: `notebooks/04_sensitivity_no_ad.ipynb`
 
-- Filters to no/low AD pathology (`niareagansc > 2`)
-- Re-runs per-lipid and category models for all/male/female cohorts
-- Adds z-score scaled lipid sensitivity models
-- Writes:
-  - `results/tables/sensitivity_noad_dataset.csv`
-  - `results/tables/sensitivity_noad_lipid_*.csv`
-  - `results/tables/sensitivity_noad_category_*.csv`
-  - `results/tables/sensitivity_noad_lipid_zscore_*.csv`
+- Filters to `niareagansc > 2`
+- Repeats primary models in all/male/female cohorts
+- Adds z-score scaling sensitivity pass
+- Writes `results/tables/sensitivity_noad_*`
 
-### Step 05 - Visualization
+### Step 05: Visualization
 
 Script: `scripts/05_visualization.py`  
 Notebook: `notebooks/05_visualization.ipynb`
 
-- Creates:
-  - Volcano plots (`all`, `male`, `female`)
-  - Category-level effect-size barplot
-  - Top lipid regression/distribution plots vs `SI_avg`
-- Writes:
-  - `results/figures/volcano_all.png`
-  - `results/figures/volcano_male.png`
-  - `results/figures/volcano_female.png`
-  - `results/figures/category_effects_all.png`
-  - `results/figures/lipid_distribution_plots/*.png`
+- Builds volcano plots for all/male/female main analyses
+- Builds ANCOVA interaction volcano plot
+- Builds category effect-size barplot
+- Builds top lipid-vs-SI scatter/regression figures
 
-## Notes for Collaborators
+## Interpreting the Sex Interaction (ANCOVA)
 
-- Start with scripts for reproducible command-line runs.
-- Use notebooks for interactive exploration and interpretation.
-- Path constants are centralized in `config.py`.
-- Shared preprocessing/model code is centralized under `src/`.
+The key term is `SI_avg:msex`:
+
+- `coef_interaction`: direction/magnitude of sex difference in SI effect
+- `p_interaction`: nominal significance of that difference
+- `fdr_p_interaction`: multiple-testing-adjusted significance across lipids
+
+Use `results/tables/ancova_sex_lipid.csv` and `results/figures/volcano_sex_interaction.png` to identify robust sex-differential SI associations.
+
+## Where to look next
+
+- `scripts/README.md` for CLI details
+- `notebooks/README.md` for guided interactive workflow
+- `src/README.md` for utility/API overview
+- `results/README.md` for output interpretation
+- `data/README.md` for data inventory and acquisition notes

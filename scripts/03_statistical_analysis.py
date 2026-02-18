@@ -22,6 +22,7 @@ from src.data_utils import get_lipid_columns  # noqa: E402
 from src.stats_utils import (  # noqa: E402
     RegressionSpec,
     compute_category_means,
+    run_ancova_sex_interaction,
     run_per_lipid_regression,
     split_by_sex,
 )
@@ -83,6 +84,33 @@ def run_statistical_analysis(
         category_out = output_tables_dir / f"stats_category_{cohort_name}.csv"
         category_results.to_csv(category_out, index=False)
         output_paths[f"category_{cohort_name}"] = category_out
+
+    # ANCOVA-style pooled interaction models to test sex differences in SI effects.
+    ancova_lipid = run_ancova_sex_interaction(
+        df=df,
+        lipid_columns=lipid_cols,
+        main_predictor="SI_avg",
+        sex_column="msex",
+        covariates=tuple(predictors[1:]),
+        min_n=20,
+    )
+    ancova_lipid_out = output_tables_dir / "ancova_sex_lipid.csv"
+    ancova_lipid.to_csv(ancova_lipid_out, index=False)
+    output_paths["ancova_lipid"] = ancova_lipid_out
+
+    category_all_df = compute_category_means(df, lipid_columns=lipid_cols)
+    category_cols_all = [c for c in category_all_df.columns if c.startswith("catmean_")]
+    ancova_category = run_ancova_sex_interaction(
+        df=category_all_df,
+        lipid_columns=category_cols_all,
+        main_predictor="SI_avg",
+        sex_column="msex",
+        covariates=tuple(predictors[1:]),
+        min_n=20,
+    )
+    ancova_category_out = output_tables_dir / "ancova_sex_category.csv"
+    ancova_category.to_csv(ancova_category_out, index=False)
+    output_paths["ancova_category"] = ancova_category_out
 
     print("Statistical analysis complete.")
     for key, path in sorted(output_paths.items()):
