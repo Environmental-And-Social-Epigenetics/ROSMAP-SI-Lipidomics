@@ -1,0 +1,26 @@
+# Python cache and virtual envs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Jupyter artifacts
+.ipynb_checkpoints/
+
+# Local analysis outputs
+results/figures/*
+results/tables/*
+!results/figures/.gitkeep
+!results/tables/.gitkeep
+
+# Local data copies (kept out of git)
+data/raw/*
+data/processed/*
+!data/README.md
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# OS/editor files
+.DS_Store
+Thumbs.db

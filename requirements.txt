@@ -1,0 +1,11 @@
+jupyter
+matplotlib
+numpy
+pandas
+scikit-learn
+scipy
+seaborn
+statsmodels
+
+# Optional bridge if you want to execute R code from Python notebooks/scripts.
+rpy2
